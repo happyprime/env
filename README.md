@@ -194,7 +194,7 @@ doesn't exist is an error at start rather than a puzzle later — a missing
 A pin is applied when the plugin is first installed. Changing `@10.7.0` to
 `@10.8.0` won't move a site that already has it — the plugin is present, so
 there's nothing to install. `happy-env cli <site> plugin update` moves it, and
-`destroy` starts over.
+`reset` (or `destroy`) starts over.
 
 ## Machine settings
 
@@ -212,6 +212,7 @@ rather than any project. It's optional, and most people never write one.
 | ------------------------ | ----------------------------------------------------- |
 | `happy-env start [site…]`| Start the shared services and this repo's sites        |
 | `happy-env stop [site…]` | Stop containers, keeping them (restart is seconds)     |
+| `happy-env reset [site…]`| Drop the database and reinstall WordPress fresh (asks first; `--yes` skips) |
 | `happy-env destroy [site…]` | Remove containers, volumes, and the database        |
 | `happy-env status`       | What's running                                         |
 | `happy-env cli <site> …` | Run wp-cli, e.g. `happy-env cli blog plugin list`      |

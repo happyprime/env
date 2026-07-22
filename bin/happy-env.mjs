@@ -4,6 +4,8 @@
  *
  *   happy-env start [site…]    Start this repo's sites (and shared services)
  *   happy-env stop [site…]     Stop this repo's sites
+ *   happy-env reset [site…]    Drop the database and reinstall WordPress fresh
+ *                              ( asks first; --yes / -y skips the prompt )
  *   happy-env destroy [site…]  Stop and delete containers, volumes, database
  *   happy-env status           What's running
  *   happy-env cli <site> …     Run wp-cli against a site
@@ -14,6 +16,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import readline from 'node:readline';
 
 import { regenerateCert } from '../lib/cert.mjs';
 import { loadConfig } from '../lib/config.mjs';
@@ -32,6 +35,33 @@ const fail = ( message ) => {
 	console.error( `\nError: ${ message }\n` );
 	process.exit( 1 );
 };
+
+/**
+ * Ask a yes/no question and resolve to the answer.
+ *
+ * Only "y"/"yes" counts as consent; anything else, including a bare Enter, is a
+ * no — the safe default for a destructive prompt. With no terminal to ask (a
+ * script, a CI job) there's no one to answer, so it declines rather than block
+ * forever waiting on a stdin that will never arrive; `--yes` is how those cases
+ * say they meant it.
+ *
+ * @param {string} question Text to show, without the trailing prompt.
+ * @return {Promise<boolean>} Whether the user said yes.
+ */
+function confirm( question ) {
+	if ( ! process.stdin.isTTY ) {
+		return Promise.resolve( false );
+	}
+
+	const rl = readline.createInterface( { input: process.stdin, output: process.stdout } );
+
+	return new Promise( ( resolve ) => {
+		rl.question( `${ question } [y/N] `, ( answer ) => {
+			rl.close();
+			resolve( /^y(es)?$/i.test( answer.trim() ) );
+		} );
+	} );
+}
 
 /**
  * This project's hosts, if you're standing in a project.
@@ -328,6 +358,68 @@ async function destroy( names ) {
 }
 
 /**
+ * happy-env reset
+ *
+ * Clear a site's data and reinstall WordPress from scratch, keeping the
+ * containers, core volume, and certificate. Faster than `destroy` followed by
+ * `start`, and it never touches the shared services or other projects.
+ *
+ * @param {string[]} args Site slugs, optionally with `--yes`/`-y`.
+ */
+async function reset( args ) {
+	const assumeYes = args.some( ( arg ) => arg === '--yes' || arg === '-y' );
+	const names = args.filter( ( arg ) => arg !== '--yes' && arg !== '-y' );
+
+	const { sites } = loadConfig();
+	const selected = select( sites, names );
+
+	// Dropping databases is the one thing here that loses work and can't be
+	// undone, so confirm it — unless `--yes` already stood in for the answer.
+	if ( ! assumeYes ) {
+		const which = selected.map( ( site ) => site.slug ).join( ', ' );
+		const ok = await confirm(
+			`Drop the database and reinstall WordPress for ${ which }? This deletes all data.`
+		);
+		if ( ! ok ) {
+			log( 'Nothing changed.' );
+			return;
+		}
+	}
+
+	// mysql has to be up to drop anything, and a stopped site is a fair thing to
+	// reset — so bring the shared services up first, exactly as `start` does.
+	await ensureServices( { hosts: selected.map( ( site ) => site.host ), log } );
+
+	for ( const site of selected ) {
+		log( `\nResetting ${ site.slug }…` );
+
+		// Drop the whole schema rather than emptying tables: it clears anything a
+		// plugin or a previous WordPress version left behind, and leaves
+		// `startSite`'s `core is-installed` check reading false — which is what
+		// makes it run a fresh install, activate the theme, and re-add the
+		// declared plugins, the same path as a first boot. `startSite` recreates
+		// the database (`ensureDatabase`) before it needs it.
+		capture( 'docker', [
+			'exec',
+			MYSQL_CONTAINER,
+			'mariadb',
+			`-u${ MYSQL_USER }`,
+			`-p${ MYSQL_PASSWORD }`,
+			'-e',
+			`DROP DATABASE IF EXISTS \`${ site.slug }\``,
+		] );
+
+		await startSite( site );
+	}
+
+	log( '\nReady:' );
+	for ( const site of selected ) {
+		log( `  https://${ site.host }  (admin / password)` );
+	}
+	log( '' );
+}
+
+/**
  * happy-env status
  */
 function status() {
@@ -393,6 +485,9 @@ try {
 			break;
 		case 'stop':
 			await stop( args );
+			break;
+		case 'reset':
+			await reset( args );
 			break;
 		case 'destroy':
 			await destroy( args );
