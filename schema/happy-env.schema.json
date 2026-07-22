@@ -37,6 +37,11 @@
 			"description": "Directory whose entries are each mounted into wp-content/mu-plugins, relative to the site root. Defaults to ./mu-plugins when present.",
 			"type": "string"
 		},
+		"mounts": {
+			"description": "Extra paths to mount into wp-content, as { source: target }. Sources are relative to the site root, targets to wp-content — e.g. { \"./vendor\": \"vendor\" } for a composer directory that plugins in the repo autoload from.",
+			"type": "object",
+			"additionalProperties": { "type": "string" }
+		},
 		"config": {
 			"description": "Extra wp-config.php constants.",
 			"type": "object"
@@ -59,6 +64,7 @@
 					"themes": { "type": "array", "items": { "type": "string" } },
 					"plugins": { "type": "array", "items": { "type": "string" } },
 					"muPlugins": { "type": "string" },
+					"mounts": { "type": "object", "additionalProperties": { "type": "string" } },
 					"config": { "type": "object" }
 				},
 				"required": ["host"]

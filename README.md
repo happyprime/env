@@ -164,6 +164,7 @@ root:
 | `themes`    | every dir in `./themes`  | Default themes are skipped — core supplies them.         |
 | `plugins`   | every dir in `./plugins` | See below.                                               |
 | `muPlugins` | `./mu-plugins`      | Mounted entry by entry, not as one directory.                 |
+| `mounts`    | `{}`                | Extra paths into `wp-content`, as `{ source: target }`.       |
 | `config`    | `{}`                | Extra `wp-config.php` constants.                              |
 | `root`      | repo root           | Per-site only.                                                |
 
@@ -173,6 +174,22 @@ mounted and left alone — whether it's active is the database's business, and
 force-activating would silently override a site's real state. Declared entries
 accept a wordpress.org slug (`woocommerce`), a pinned slug (`woocommerce@10.7.0`),
 a zip URL, or a local path (`./plugins/thing`, mounted so it stays editable).
+
+**Extra mounts.** `themes`, `plugins`, `mu-plugins`, and `uploads` cover most
+repos. `mounts` is for what's left — in practice a composer `vendor` directory
+sitting at the wp-content root, which plugins in the same repo autoload from
+rather than from their own directory:
+
+```json
+{
+	"host": "mysite.example.dev",
+	"mounts": { "./vendor": "vendor" }
+}
+```
+
+Sources are relative to the site root, targets to `wp-content`. A source that
+doesn't exist is an error at start rather than a puzzle later — a missing
+`vendor` says to run `composer install`.
 
 A pin is applied when the plugin is first installed. Changing `@10.7.0` to
 `@10.8.0` won't move a site that already has it — the plugin is present, so
@@ -307,6 +324,14 @@ unreachable. Picking a third loopback address changes nothing.
 It doesn't help that some stacks publish `'80:80'` with no host IP at all, which
 is every interface — so they conflict with anything on those ports no matter
 what.
+
+**It doesn't have to be a container.** Laravel Valet, a Homebrew nginx, an Apache
+left running from something else — anything holding `:80`/`:443` on the host does
+this too, and that case is the more confusing one, because nothing reports it.
+`compose up` succeeds, Traefik starts and logs nothing wrong, and the published
+port simply never listens: every site is unreachable while the proxy looks
+perfectly healthy. `start` checks for these too and names the process. For Valet,
+`valet stop` frees the ports.
 
 So, under OrbStack: mutual exclusion, until either it honours host IPs or one
 proxy fronts both stacks.
