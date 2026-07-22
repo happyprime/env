@@ -210,7 +210,28 @@ async function startSite( site ) {
 	const inactive = declared.filter( ( plugin ) => present.get( plugin.name ) !== 'active' );
 	if ( inactive.length ) {
 		log( `  activating ${ inactive.length } plugin(s)…` );
-		wp( site, [ 'plugin', 'activate', ...inactive.map( ( plugin ) => plugin.name ) ], true );
+
+		// --skip-themes because a theme is allowed to depend on a plugin in this
+		// very list, and loading it here is what makes that dependency circular:
+		// the theme fatals for want of the plugin, wp-cli aborts, and the plugin
+		// it was missing never activates. The theme loads normally on a real
+		// request, by which time the plugin is active.
+		const result = wp(
+			site,
+			[ 'plugin', 'activate', ...inactive.map( ( plugin ) => plugin.name ), '--skip-themes' ],
+			true
+		);
+
+		// Worth stopping for. Silently carrying on prints a ready site that is
+		// missing half its code, and the failure only resurfaces as whatever
+		// breaks first in the browser.
+		if ( result.code !== 0 ) {
+			throw new Error(
+				`${ site.slug }: could not activate ` +
+					`${ inactive.map( ( plugin ) => plugin.name ).join( ', ' ) }: ` +
+					( result.stderr || result.stdout )
+			);
+		}
 	}
 }
 
