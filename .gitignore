@@ -1,0 +1,4 @@
+# Certificates live in ~/.happy-env/certs, outside the package.
+
+
+/node_modules/

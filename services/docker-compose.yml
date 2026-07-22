@@ -1,0 +1,72 @@
+name: hp-env
+
+# Shared services every project uses. Started on demand by `happy-env start`;
+# they stay up between projects and are never per-project.
+#
+#   *.example.dev  ->  127.0.0.2  ->  Traefik  ->  a site container
+#
+# Traefik binds a loopback alias rather than 127.0.0.1 so that the address is
+# the project's alone — nothing binds :53 either, so there's no DNS daemon to
+# toggle. Note that under OrbStack this does NOT let two proxies coexist on
+# different loopback addresses; see "Sharing ports" in the README.
+#
+# Sites reach MariaDB as `hp-mysql` on the shared network. One server holds
+# every project's database, so a new site is a new schema rather than a new
+# container.
+
+services:
+  proxy:
+    image: traefik:3.6.12
+    container_name: hp-proxy
+    restart: unless-stopped
+    networks:
+      - hp-env
+    # Set by the CLI from the machine's config. The default is a loopback alias;
+    # 127.0.0.1 is the choice that makes *.localhost hosts work.
+    ports:
+      - "${HAPPY_ENV_BIND:-127.0.0.2}:80:80"
+      - "${HAPPY_ENV_BIND:-127.0.0.2}:443:443"
+    volumes:
+      - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./traefik/dynamic:/etc/traefik/dynamic:ro
+      # Set by the CLI. The certificate lives outside the package, which
+      # npm may replace wholesale on any reinstall.
+      # Only ever unset if this file is run by hand, in which case the CLI is
+      # what you actually want: it derives the certificate, picks the bind
+      # address, and starts this for you.
+      - ${HAPPY_ENV_CERTS:?run `happy-env start` from a project rather than compose directly}:/etc/traefik/certs:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.dashboard.rule=Host(`${HAPPY_ENV_DASHBOARD_HOST:-proxy.localhost}`)
+      - traefik.http.routers.dashboard.entrypoints=websecure
+      - traefik.http.routers.dashboard.service=api@internal
+      - traefik.http.routers.dashboard.tls=true
+
+  mysql:
+    image: mariadb:lts
+    container_name: hp-mysql
+    restart: unless-stopped
+    networks:
+      - hp-env
+    # 3306 is usually taken by a Homebrew MariaDB, so publish 3307 for host
+    # tools. Site containers don't use this — they connect over the network.
+    ports:
+      - "127.0.0.1:3307:3306"
+    environment:
+      MARIADB_ROOT_PASSWORD: password
+    volumes:
+      - hp-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  hp-mysql-data:
+
+networks:
+  # Canonical owner of the shared network. Site stacks join it as external.
+  hp-env:
+    name: hp-env

@@ -1,0 +1,36 @@
+# Traefik static configuration.
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+entryPoints:
+  web:
+    address: ":80"
+    # .dev is HSTS-preloaded so browsers never send plain HTTP here anyway, but
+    # curl and other tools do.
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+api:
+  dashboard: true
+
+providers:
+  # Sites are discovered from container labels — no per-project route files and
+  # no host ports to allocate.
+  docker:
+    exposedByDefault: false
+    network: hp-env
+  # Loads the wildcard certificate (see dynamic/tls.yml).
+  file:
+    directory: /etc/traefik/dynamic
+    watch: true
+
+log:
+  level: INFO

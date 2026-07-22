@@ -1,0 +1,72 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"$id": "https://github.com/happyprime/env/schema/happy-env.schema.json",
+	"title": ".happy-env.json",
+	"description": "Local development environment for a WordPress project. The repo is a wp-content directory; this file says how to run it.",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"$schema": {
+			"type": "string"
+		},
+		"php": {
+			"description": "PHP version. Must exist as a wordpress:<wordpress>-php<php>-apache image tag.",
+			"type": "string",
+			"default": "8.4"
+		},
+		"wordpress": {
+			"description": "WordPress version. A minor like '6.9' resolves to its latest patch when a site is first created; a full version like '6.9.4' pins exactly. An existing site keeps the core it was created with until it is destroyed.",
+			"type": "string",
+			"default": "6.9"
+		},
+		"host": {
+			"description": "Hostname for a single-site repo, e.g. 'mysite.example.dev'. Must resolve to the proxy; see the README on DNS. Shorthand for a one-entry `sites`. Mutually exclusive with `sites`.",
+			"type": "string"
+		},
+		"themes": {
+			"description": "Theme directories to mount, relative to the site root. Defaults to every directory in ./themes.",
+			"type": "array",
+			"items": { "type": "string" }
+		},
+		"plugins": {
+			"description": "Plugins to install. A wordpress.org slug ('woocommerce'), an optionally versioned slug ('woocommerce@10.7.0'), a zip URL, or a local path ('./plugins/my-plugin').",
+			"type": "array",
+			"items": { "type": "string" }
+		},
+		"muPlugins": {
+			"description": "Directory whose entries are each mounted into wp-content/mu-plugins, relative to the site root. Defaults to ./mu-plugins when present.",
+			"type": "string"
+		},
+		"config": {
+			"description": "Extra wp-config.php constants.",
+			"type": "object"
+		},
+		"sites": {
+			"description": "Sites in this repo, keyed by slug. The slug names the database and container. Use this instead of `host` when one repo serves several sites.",
+			"type": "object",
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"host": {
+						"description": "Hostname, e.g. 'blog.example.dev'.",
+						"type": "string"
+					},
+					"root": {
+						"description": "Site root relative to the repo, when a site's wp-content is not the repo root.",
+						"type": "string"
+					},
+					"themes": { "type": "array", "items": { "type": "string" } },
+					"plugins": { "type": "array", "items": { "type": "string" } },
+					"muPlugins": { "type": "string" },
+					"config": { "type": "object" }
+				},
+				"required": ["host"]
+			}
+		}
+	},
+	"oneOf": [
+		{ "required": ["host"] },
+		{ "required": ["sites"] }
+	]
+}

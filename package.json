@@ -1,0 +1,39 @@
+{
+	"name": "@happyprime/env",
+	"version": "0.3.0",
+	"description": "Shared local development for WordPress projects: trusted HTTPS, one proxy, one database, no per-project setup.",
+	"keywords": [
+		"wordpress",
+		"local-development",
+		"docker",
+		"traefik",
+		"wp-env"
+	],
+	"homepage": "https://github.com/happyprime/env",
+	"bugs": {
+		"url": "https://github.com/happyprime/env/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/happyprime/env.git"
+	},
+	"author": "Happy Prime",
+	"license": "GPL-2.0-or-later",
+	"publishConfig": {
+		"access": "public"
+	},
+	"type": "module",
+	"bin": {
+		"happy-env": "./bin/happy-env.mjs"
+	},
+	"files": [
+		"bin",
+		"lib",
+		"services",
+		"schema",
+		"com.happyprime.loopback-alias.plist"
+	],
+	"engines": {
+		"node": ">=20"
+	}
+}

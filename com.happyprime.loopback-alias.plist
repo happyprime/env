@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Persists the 127.0.0.2 loopback alias across reboots so the proxy can always
+  bind it. Install once:
+
+    sudo cp com.happyprime.loopback-alias.plist /Library/LaunchDaemons/
+    sudo launchctl load -w /Library/LaunchDaemons/com.happyprime.loopback-alias.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.happyprime.loopback-alias</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/sbin/ifconfig</string>
+    <string>lo0</string>
+    <string>alias</string>
+    <string>127.0.0.2</string>
+    <string>up</string>
+  </array>
+</dict>
+</plist>

@@ -1,0 +1,25 @@
+# Local development certificate, generated with mkcert. Set as the default cert
+# so every routed host is served over trusted HTTPS.
+#
+# Its names are derived from the hosts projects declare, so a project on a
+# domain already covered needs no certificate work at all. See `nameFor()` in
+# lib/cert.mjs.
+#
+# They're wildcards wherever a wildcard is valid. Hostname verification refuses
+# one that spans a registry-controlled domain — `*.dev` and `*.com` are both
+# rejected, and an unknown TLD is treated as a registry too, which is why the
+# `*.test` wildcard this replaced could never work. `*.example.dev` is fine: it
+# sits below the registry rather than over it.
+#
+# Wildcards are also only one label deep, so `*.example.dev` does not cover
+# `www.foo.example.dev`. Deriving each host's own parent handles that.
+
+tls:
+  certificates:
+    - certFile: /etc/traefik/certs/local.pem
+      keyFile: /etc/traefik/certs/local-key.pem
+  stores:
+    default:
+      defaultCertificate:
+        certFile: /etc/traefik/certs/local.pem
+        keyFile: /etc/traefik/certs/local-key.pem
