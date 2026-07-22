@@ -308,6 +308,14 @@ It doesn't help that some stacks publish `'80:80'` with no host IP at all, which
 is every interface — so they conflict with anything on those ports no matter
 what.
 
+**It doesn't have to be a container.** Laravel Valet, a Homebrew nginx, an Apache
+left running from something else — anything holding `:80`/`:443` on the host does
+this too, and that case is the more confusing one, because nothing reports it.
+`compose up` succeeds, Traefik starts and logs nothing wrong, and the published
+port simply never listens: every site is unreachable while the proxy looks
+perfectly healthy. `start` checks for these too and names the process. For Valet,
+`valet stop` frees the ports.
+
 So, under OrbStack: mutual exclusion, until either it honours host IPs or one
 proxy fronts both stacks.
 
