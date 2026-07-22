@@ -24,7 +24,7 @@
 	},
 	"type": "module",
 	"bin": {
-		"happy-env": "./bin/happy-env.mjs"
+		"happy-env": "bin/happy-env.mjs"
 	},
 	"files": [
 		"bin",
