@@ -46,6 +46,18 @@
 			"description": "Extra wp-config.php constants.",
 			"type": "object"
 		},
+		"uploads": {
+			"description": "Options for wp-content/uploads.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"fallback": {
+					"description": "Production origin, e.g. 'https://mysite.com'. Any uploads file missing from the local bind mount is reverse-proxied from '<fallback>/wp-content/uploads/…', so a dev site runs against real media without syncing it.",
+					"type": "string",
+					"pattern": "^https?://"
+				}
+			}
+		},
 		"sites": {
 			"description": "Sites in this repo, keyed by slug. The slug names the database and container. Use this instead of `host` when one repo serves several sites.",
 			"type": "object",
@@ -65,7 +77,14 @@
 					"plugins": { "type": "array", "items": { "type": "string" } },
 					"muPlugins": { "type": "string" },
 					"mounts": { "type": "object", "additionalProperties": { "type": "string" } },
-					"config": { "type": "object" }
+					"config": { "type": "object" },
+					"uploads": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"fallback": { "type": "string", "pattern": "^https?://" }
+						}
+					}
 				},
 				"required": ["host"]
 			}
