@@ -166,6 +166,7 @@ root:
 | `muPlugins` | `./mu-plugins`      | Mounted entry by entry, not as one directory.                 |
 | `mounts`    | `{}`                | Extra paths into `wp-content`, as `{ source: target }`.       |
 | `config`    | `{}`                | Extra `wp-config.php` constants.                              |
+| `uploads`   | `{}`                | `{ "fallback": "https://prod" }` serves missing media from production. |
 | `root`      | repo root           | Per-site only.                                                |
 
 **Declared vs. discovered plugins.** Listing `plugins` explicitly is an intent to
@@ -195,6 +196,41 @@ A pin is applied when the plugin is first installed. Changing `@10.7.0` to
 `@10.8.0` won't move a site that already has it — the plugin is present, so
 there's nothing to install. `happy-env cli <site> plugin update` moves it, and
 `reset` (or `destroy`) starts over.
+
+### Media from production
+
+A repo carries no uploads, so a site troubleshot against real content would need
+every image synced down first. `uploads.fallback` skips that: any file missing
+from the local uploads directory is served from a production origin, and files
+you *do* have on disk still win.
+
+```json
+{
+	"host": "mysite.example.dev",
+	"uploads": { "fallback": "https://mysite.com" }
+}
+```
+
+A request for `/wp-content/uploads/2024/06/hero.jpg` is served from disk if it's
+there and reverse-proxied from `https://mysite.com/wp-content/uploads/2024/06/hero.jpg`
+if it isn't — so the media appears to come from the dev site, and nothing in the
+page markup points at production. Set it per site under `sites`, or once at the
+repo root for every site to inherit.
+
+This is the container-side equivalent of a Valet driver's missing-file fallback.
+Valet routes every request through PHP, so a driver can catch a missing upload;
+here Apache serves uploads straight off disk and a missing file never reaches
+PHP, so the fallback is Apache config instead — generated, mounted read-only,
+and never touching the official image. It's built from `mod_proxy` + `mod_ssl`,
+which that image doesn't enable by default; the generated config loads them, so
+there's nothing to install.
+
+`fallback` is for a **publicly reachable** origin — production, a staging host, a
+CDN. It resolves over normal DNS from inside the container and its certificate is
+validated against the image's CA bundle, both of which a real host satisfies.
+Pointing it at another local `*.dev` site won't work: that name resolves to the
+host loopback the container can't reach, and its certificate is the local CA the
+container doesn't trust.
 
 ## Machine settings
 
@@ -377,10 +413,11 @@ prefer them if you fly a lot.
 ## Not solved yet
 
 **Content.** A repo is `wp-content`, so there's no database in git and
-`happy-env start` gives you an empty WordPress. That's fine for theme work and
-not fine for much else. Seeding — a sanitized dump plus something like
-media-from-production for uploads — is the obvious next piece, and lifecycle
-hooks (`afterInstall`) are the shape it probably wants.
+`happy-env start` gives you an empty WordPress. Uploads have an answer now —
+[`uploads.fallback`](#media-from-production) serves missing media from
+production — but the database doesn't. Seeding a sanitized dump is the piece
+still missing, and lifecycle hooks (`afterInstall`) are the shape it probably
+wants.
 
 **Extra services.** Redis, Elasticsearch, and a mail catcher have nowhere to go
 today. A `services` key merged into the generated compose file is the natural
