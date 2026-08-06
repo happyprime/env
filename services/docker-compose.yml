@@ -63,8 +63,37 @@ services:
       timeout: 5s
       retries: 20
 
+  mailpit:
+    image: axllent/mailpit:v1.30.6
+    container_name: hp-mailpit
+    restart: unless-stopped
+    networks:
+      - hp-env
+    # Nothing is published. Sites reach SMTP as `hp-mailpit` on the shared
+    # network and the web UI is routed like any other site, which leaves the
+    # usual 1025/8025 free for whatever mail catcher a machine already runs.
+    environment:
+      # Messages outlive a restart; a mail you were about to read shouldn't
+      # depend on nobody having touched Docker in the meantime.
+      MP_DATABASE: /data/mailpit.db
+      # A plugin sending through Mailpit with credentials it uses in production
+      # should be caught, not rejected.
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    volumes:
+      - hp-mailpit-data:/data
+    # Set by the CLI, which derives it from the project's own domain so it
+    # resolves and is covered by the certificate with nothing to configure.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.mailpit.rule=Host(`${HAPPY_ENV_MAIL_HOST:-mail.localhost}`)
+      - traefik.http.routers.mailpit.entrypoints=websecure
+      - traefik.http.routers.mailpit.tls=true
+      - traefik.http.services.mailpit.loadbalancer.server.port=8025
+
 volumes:
   hp-mysql-data:
+  hp-mailpit-data:
 
 networks:
   # Canonical owner of the shared network. Site stacks join it as external.

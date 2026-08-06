@@ -7,10 +7,12 @@ database, port, or `/etc/hosts` work.
 ```
 *.example.dev  ──►  127.0.0.2  ──►  Traefik  ──►  your site container
                                                   │
-                                    one MariaDB ──┘  (one database per site)
+                                    one MariaDB ──┤  (one database per site)
+                                    one Mailpit ──┘  (one inbox for all of them)
 ```
 
-Every project shares one proxy, one database server, and one certificate.
+Every project shares one proxy, one database server, one inbox, and one
+certificate.
 Adding a project costs a config file and a schema — not another MySQL container,
 another core download, and another port to keep out of everything else's way.
 
@@ -109,9 +111,10 @@ npm run env:start
 ```
 
 The first run generates the certificate and starts the shared services, so
-there's no separate setup step. `start` brings up the proxy and MariaDB if they
+there's no separate setup step. `start` brings up the shared services if they
 aren't already running, creates the site's database, boots it, and installs
-WordPress on first run.
+WordPress on first run. It finishes by printing the site's URL and the inbox
+every project's mail lands in.
 
 ## Configuring a project
 
@@ -241,6 +244,7 @@ rather than any project. It's optional, and most people never write one.
 | --------------- | ----------------- | --------------------------------------------------------- |
 | `bindAddress`   | `127.0.0.2`       | Where the proxy listens. `127.0.0.1` for `.localhost`.     |
 | `dashboardHost` | `proxy.localhost` | Traefik's dashboard. Only reachable if it resolves to `bindAddress`. |
+| `mailHost`      | derived           | The inbox's host. Defaults to `mail.` plus your project's parent domain. |
 
 ## Commands
 
@@ -253,7 +257,7 @@ rather than any project. It's optional, and most people never write one.
 | `happy-env status`       | What's running                                         |
 | `happy-env cli <site> …` | Run wp-cli, e.g. `happy-env cli blog plugin list`      |
 | `happy-env cert [--only]`| Reissue the certificate (`start` does this for you)    |
-| `happy-env services stop`| Stop the shared proxy and MariaDB                      |
+| `happy-env services stop`| Stop the shared proxy, MariaDB, and Mailpit            |
 
 Admin credentials are `admin` / `password`.
 
@@ -294,6 +298,21 @@ Traefik routes on the Host header, so nothing publishes a host port. There are n
 ports to allocate and none to collide — which is worth stating plainly, because
 port collisions are the most common way an e2e suite fails, silently running
 against whatever WordPress answered instead.
+
+**Mail is caught, never sent.** One Mailpit holds every project's mail, the same
+way one MariaDB holds every project's database. Sites reach its SMTP listener as
+`hp-mailpit` on the shared network, and an mu-plugin mounted into every site
+points PHPMailer at it — hooked last, so a site configuring its own SMTP
+transport still has its mail caught rather than delivered from your laptop.
+
+The inbox is at `https://mail.<your domain>` — derived from the domain your
+project already uses, so the wildcard DNS that resolves your sites resolves it
+too and the certificate already covers it. A repo on `foo.example.dev` puts the
+inbox on `mail.example.dev`. Set `mailHost` if your projects don't share a
+domain, or if you'd rather name it yourself.
+
+Nothing is published on the host. The usual 1025 and 8025 stay free, so a
+Homebrew Mailpit or MailHog can go on running beside this one.
 
 **Site config is eval'd, not written.** The official image's `wp-config.php` runs
 `if ($configExtra = getenv_docker('WORDPRESS_CONFIG_EXTRA', '')) {
@@ -419,9 +438,9 @@ production — but the database doesn't. Seeding a sanitized dump is the piece
 still missing, and lifecycle hooks (`afterInstall`) are the shape it probably
 wants.
 
-**Extra services.** Redis, Elasticsearch, and a mail catcher have nowhere to go
-today. A `services` key merged into the generated compose file is the natural
-hook; nothing in the current structure fights it.
+**Extra services.** Redis and Elasticsearch have nowhere to go today. A
+`services` key merged into the generated compose file is the natural hook;
+nothing in the current structure fights it.
 
 **xdebug.** The official image doesn't ship it, so this needs a derived image.
 
