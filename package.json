@@ -1,7 +1,7 @@
 {
 	"name": "@happyprime/env",
-	"version": "0.7.1",
-	"description": "Shared local development for WordPress projects: trusted HTTPS, one proxy, one database, no per-project setup.",
+	"version": "0.8.0",
+	"description": "Shared local development for WordPress projects: trusted HTTPS, one proxy, one database, one inbox, no per-project setup.",
 	"keywords": [
 		"wordpress",
 		"local-development",

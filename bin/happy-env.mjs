@@ -11,7 +11,7 @@
  *   happy-env cli <site> …     Run wp-cli against a site
  *   happy-env cert [--only]    Reissue the certificate ( `start` does this for
  *                              you; --only drops names other projects added )
- *   happy-env services stop    Stop the shared proxy and mysql
+ *   happy-env services stop    Stop the shared proxy, mysql, and mail
  */
 
 import fs from 'node:fs';
@@ -25,6 +25,8 @@ import { capture, dockerAvailable, isRunning, run, waitFor } from '../lib/docker
 import {
 	ensureDatabase,
 	ensureServices,
+	mailHostFor,
+	MAILPIT_CONTAINER,
 	MYSQL_CONTAINER,
 	PROXY_CONTAINER,
 	stopServices,
@@ -121,6 +123,22 @@ function select( sites, names ) {
 		}
 		return site;
 	} );
+}
+
+/**
+ * Print where the sites that just started can be reached.
+ *
+ * @param {Object[]} sites Resolved sites.
+ */
+function announce( sites ) {
+	log( '\nReady:' );
+
+	for ( const site of sites ) {
+		log( `  https://${ site.host }  (admin / password)` );
+	}
+
+	log( `  https://${ mailHostFor( sites.map( ( site ) => site.host ) ) }  (mail catcher)` );
+	log( '' );
 }
 
 /**
@@ -280,11 +298,7 @@ async function start( names ) {
 		await startSite( site );
 	}
 
-	log( '\nReady:' );
-	for ( const site of selected ) {
-		log( `  https://${ site.host }  (admin / password)` );
-	}
-	log( '' );
+	announce( selected );
 }
 
 /**
@@ -412,11 +426,7 @@ async function reset( args ) {
 		await startSite( site );
 	}
 
-	log( '\nReady:' );
-	for ( const site of selected ) {
-		log( `  https://${ site.host }  (admin / password)` );
-	}
-	log( '' );
+	announce( selected );
 }
 
 /**
@@ -425,6 +435,7 @@ async function reset( args ) {
 function status() {
 	log( `proxy  ${ isRunning( PROXY_CONTAINER ) ? 'running' : 'stopped' }` );
 	log( `mysql  ${ isRunning( MYSQL_CONTAINER ) ? 'running' : 'stopped' }` );
+	log( `mail   ${ isRunning( MAILPIT_CONTAINER ) ? 'running' : 'stopped' }` );
 
 	let config;
 	try {
