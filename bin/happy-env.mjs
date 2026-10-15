@@ -75,7 +75,7 @@ function confirm( question ) {
  */
 function projectHosts() {
 	try {
-		return loadConfig().sites.map( ( site ) => site.host );
+		return loadConfig().sites.flatMap( ( site ) => site.hosts );
 	} catch {
 		return [];
 	}
@@ -135,6 +135,10 @@ function announce( sites ) {
 
 	for ( const site of sites ) {
 		log( `  https://${ site.host }  (admin / password)` );
+
+		for ( const alias of site.hosts.slice( 1 ) ) {
+			log( `  https://${ alias }  (also routed here)` );
+		}
 	}
 
 	log( `  https://${ mailHostFor( sites.map( ( site ) => site.host ) ) }  (mail catcher)` );
@@ -292,7 +296,7 @@ async function start( names ) {
 	const { sites } = loadConfig();
 	const selected = select( sites, names );
 
-	await ensureServices( { hosts: selected.map( ( site ) => site.host ), log } );
+	await ensureServices( { hosts: selected.flatMap( ( site ) => site.hosts ), log } );
 
 	for ( const site of selected ) {
 		await startSite( site );
@@ -402,7 +406,7 @@ async function reset( args ) {
 
 	// mysql has to be up to drop anything, and a stopped site is a fair thing to
 	// reset — so bring the shared services up first, exactly as `start` does.
-	await ensureServices( { hosts: selected.map( ( site ) => site.host ), log } );
+	await ensureServices( { hosts: selected.flatMap( ( site ) => site.hosts ), log } );
 
 	for ( const site of selected ) {
 		log( `\nResetting ${ site.slug }…` );

@@ -156,12 +156,48 @@ root:
 }
 ```
 
+### One site, several hostnames
+
+A WordPress network can serve more than one domain from a single database. That
+is one site as far as this is concerned — one container, one database — but the
+proxy has to answer for every domain in it, so name the rest as `aliases`:
+
+```json
+{
+	"host": "bedsbirdclub.example.dev",
+	"aliases": [ "bnhs.example.dev" ],
+	"config": {
+		"MULTISITE": true,
+		"SUBDOMAIN_INSTALL": true,
+		"DOMAIN_CURRENT_SITE": "bedsbirdclub.example.dev",
+		"PATH_CURRENT_SITE": "/",
+		"SITE_ID_CURRENT_SITE": 1
+	}
+}
+```
+
+`host` stays canonical: it is the URL WordPress is configured with, the one
+printed on start, and the one the inbox domain is derived from. An alias only
+has to route — which site answers on it is the network's business, decided from
+`wp_blogs`, not the proxy's. Aliases join the certificate the same way hosts do,
+each contributing its own parent, so a domain a level deeper brings its own
+wildcard.
+
+This is for one network across several domains. Separate sites that happen to
+share a repo want `sites` instead, so each gets its own database.
+
+Note that `WP_HOME` and `WP_SITEURL` are set from `host`, and core removes their
+filters under multisite — "WP_HOME and WP_SITEURL should not have any effect in
+MS", in `ms-default-filters.php` — so a network reads its URLs from the database
+and the constants sit there harmlessly.
+
 ### Every key
 
 | Key         | Default             | Notes                                                        |
 | ----------- | ------------------- | ------------------------------------------------------------ |
 | `host`      | —                   | Single-site shorthand. Mutually exclusive with `sites`.       |
 | `sites`     | —                   | Several sites, keyed by slug. The slug names the database.    |
+| `aliases`   | `[]`                | More hostnames routed to the same site. See below.            |
 | `php`       | `8.4`               | `8.5` works. `8.6` isn't released.                            |
 | `wordpress` | `6.9`               | `6.9` resolves to its latest patch at creation; `6.9.4` pins. |
 | `themes`    | every dir in `./themes`  | Default themes are skipped — core supplies them.         |
