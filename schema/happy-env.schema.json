@@ -23,6 +23,11 @@
 			"description": "Hostname for a single-site repo, e.g. 'mysite.example.dev'. Must resolve to the proxy; see the README on DNS. Shorthand for a one-entry `sites`. Mutually exclusive with `sites`.",
 			"type": "string"
 		},
+		"aliases": {
+			"description": "Additional hostnames routed to this site, for a repo whose WordPress network serves more than one domain. `host` stays the canonical URL; these only have to route.",
+			"type": "array",
+			"items": { "type": "string" }
+		},
 		"themes": {
 			"description": "Theme directories to mount, relative to the site root. Defaults to every directory in ./themes.",
 			"type": "array",
@@ -68,6 +73,11 @@
 					"host": {
 						"description": "Hostname, e.g. 'blog.example.dev'.",
 						"type": "string"
+					},
+					"aliases": {
+						"description": "Additional hostnames routed to this site, for a network serving more than one domain.",
+						"type": "array",
+						"items": { "type": "string" }
 					},
 					"root": {
 						"description": "Site root relative to the repo, when a site's wp-content is not the repo root.",
