@@ -134,7 +134,8 @@ function announce( sites ) {
 	log( '\nReady:' );
 
 	for ( const site of sites ) {
-		log( `  https://${ site.host }  (admin / password)` );
+		// A checked-in core comes with its own database and users.
+		log( `  https://${ site.host }${ site.core ? '' : '  (admin / password)' }` );
 
 		for ( const alias of site.hosts.slice( 1 ) ) {
 			log( `  https://${ alias }  (also routed here)` );
@@ -156,8 +157,11 @@ async function startSite( site ) {
 
 	ensureDatabase( site.slug );
 
-	// Bind-mounted, and every client repo gitignores it.
-	fs.mkdirSync( path.join( site.root, 'uploads' ), { recursive: true } );
+	// Bind-mounted, and every client repo gitignores it. A checked-in core
+	// brings its own.
+	if ( ! site.core ) {
+		fs.mkdirSync( path.join( site.root, 'uploads' ), { recursive: true } );
+	}
 
 	writeCompose( site );
 

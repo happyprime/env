@@ -19,6 +19,10 @@
 			"type": "string",
 			"default": "6.9"
 		},
+		"core": {
+			"description": "A full WordPress checkout to run instead of the image's core, relative to the repo (absolute paths work). It is bind-mounted whole as the docroot and supplies wp-content, so themes, plugins, muPlugins and root cannot be set with it; `mounts` may only replace files that already exist in the checkout. The `wordpress` key then only picks the image's PHP and Apache.",
+			"type": "string"
+		},
 		"host": {
 			"description": "Hostname for a single-site repo, e.g. 'mysite.example.dev'. Must resolve to the proxy; see the README on DNS. Shorthand for a one-entry `sites`. Mutually exclusive with `sites`.",
 			"type": "string"
@@ -43,7 +47,7 @@
 			"type": "string"
 		},
 		"mounts": {
-			"description": "Extra paths to mount into wp-content, as { source: target }. Sources are relative to the site root, targets to wp-content — e.g. { \"./vendor\": \"vendor\" } for a composer directory that plugins in the repo autoload from.",
+			"description": "Extra paths to mount into wp-content, as { source: target }. Sources are relative to the site root, targets to wp-content — e.g. { \"./vendor\": \"vendor\" } for a composer directory that plugins in the repo autoload from. An absolute target is a path anywhere in the container, e.g. \"/etc/apache2/conf-enabled/site.conf\".",
 			"type": "object",
 			"additionalProperties": { "type": "string" }
 		},
@@ -81,6 +85,10 @@
 					},
 					"root": {
 						"description": "Site root relative to the repo, when a site's wp-content is not the repo root.",
+						"type": "string"
+					},
+					"core": {
+						"description": "A full WordPress checkout to run instead of the image's core, relative to the repo. See the top-level `core`.",
 						"type": "string"
 					},
 					"themes": { "type": "array", "items": { "type": "string" } },
