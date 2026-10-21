@@ -5,7 +5,8 @@
  *   happy-env start [site…]    Start this repo's sites (and shared services)
  *   happy-env stop [site…]     Stop this repo's sites
  *   happy-env reset [site…]    Drop the database and reinstall WordPress fresh
- *                              ( asks first; --yes / -y skips the prompt )
+ *                              ( asks first; --yes / -y skips the prompt;
+ *                              --force includes sites that set `core` )
  *   happy-env destroy [site…]  Stop and delete containers, volumes, database
  *   happy-env status           What's running
  *   happy-env cli <site> …     Run wp-cli against a site
@@ -386,14 +387,26 @@ async function destroy( names ) {
  * containers, core volume, and certificate. Faster than `destroy` followed by
  * `start`, and it never touches the shared services or other projects.
  *
- * @param {string[]} args Site slugs, optionally with `--yes`/`-y`.
+ * @param {string[]} args Site slugs, optionally with `--yes`/`-y` and `--force`.
  */
 async function reset( args ) {
 	const assumeYes = args.some( ( arg ) => arg === '--yes' || arg === '-y' );
-	const names = args.filter( ( arg ) => arg !== '--yes' && arg !== '-y' );
+	const force = args.includes( '--force' );
+	const names = args.filter( ( arg ) => ! [ '--yes', '-y', '--force' ].includes( arg ) );
 
 	const { sites } = loadConfig();
 	const selected = select( sites, names );
+
+	// A checked-in core's database is usually an import that took real effort
+	// to get, and a multisite one can't be reinstalled at all.
+	const core = selected.filter( ( site ) => site.core );
+	if ( core.length && ! force ) {
+		throw new Error(
+			`Not resetting ${ core.map( ( site ) => site.slug ).join( ', ' ) }: a site that sets "core" ` +
+				'usually runs on an imported database, and reset would drop it for a fresh install.\n' +
+				'Re-import the dump instead, or pass --force to reset anyway.'
+		);
+	}
 
 	// Dropping databases is the one thing here that loses work and can't be
 	// undone, so confirm it — unless `--yes` already stood in for the answer.

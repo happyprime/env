@@ -200,13 +200,13 @@ the checkout's own `wp-config.php`, not to `config`; see below.
 | ----------- | ------------------- | ------------------------------------------------------------ |
 | `host`      | —                   | Single-site shorthand. Mutually exclusive with `sites`.       |
 | `sites`     | —                   | Several sites, keyed by slug. The slug names the database.    |
-| `aliases`   | `[]`                | More hostnames routed to the same site. See below.            |
+| `aliases`   | `[]`                | More hostnames routed to the same site. See above.            |
 | `php`       | `8.4`               | `8.5` works. `8.6` isn't released.                            |
 | `wordpress` | `6.9`               | `6.9` resolves to its latest patch at creation; `6.9.4` pins. |
 | `themes`    | every dir in `./themes`  | Default themes are skipped — core supplies them.         |
 | `plugins`   | every dir in `./plugins` | See below.                                               |
 | `muPlugins` | `./mu-plugins`      | Mounted entry by entry, not as one directory.                 |
-| `mounts`    | `{}`                | Extra paths into `wp-content`, as `{ source: target }`.       |
+| `mounts`    | `{}`                | Extra paths, as `{ source: target }`. Targets are relative to `wp-content`; one starting with `/` is absolute in the container. |
 | `config`    | `{}`                | Extra `wp-config.php` constants.                              |
 | `uploads`   | `{}`                | `{ "fallback": "https://prod" }` serves missing media from production. |
 | `root`      | repo root           | Per-site only.                                                |
@@ -218,6 +218,11 @@ mounted and left alone — whether it's active is the database's business, and
 force-activating would silently override a site's real state. Declared entries
 accept a wordpress.org slug (`woocommerce`), a pinned slug (`woocommerce@10.7.0`),
 a zip URL, or a local path (`./plugins/thing`, mounted so it stays editable).
+
+A pin is applied when the plugin is first installed. Changing `@10.7.0` to
+`@10.8.0` won't move a site that already has it — the plugin is present, so
+there's nothing to install. `happy-env cli <site> plugin update` moves it, and
+`reset` (or `destroy`) starts over.
 
 **Extra mounts.** `themes`, `plugins`, `mu-plugins`, and `uploads` cover most
 repos. `mounts` is for what's left — in practice a composer `vendor` directory
@@ -236,9 +241,23 @@ doesn't exist is an error at start rather than a puzzle later — a missing
 `vendor` says to run `composer install`.
 
 A target that starts with `/` is a path anywhere in the container. That's the
-way in for an Apache or PHP config file — `"./local/site.conf":
-"/etc/apache2/conf-enabled/site.conf"` — since neither has a home under
-`wp-content`.
+way in for an Apache or PHP config file, since neither has a home under
+`wp-content`. Both kinds can sit side by side:
+
+```json
+{
+	"host": "mysite.example.dev",
+	"mounts": {
+		"./vendor": "vendor",
+		"./local/site.conf": "/etc/apache2/conf-enabled/site.conf",
+		"./local/php.ini": "/usr/local/etc/php/conf.d/local.ini"
+	}
+}
+```
+
+Apache reads every `*.conf` in `conf-enabled` and PHP every `*.ini` in
+`conf.d`, so a new file name adds to the image's config. Reuse a name the image
+already has only to replace that file outright.
 
 ### Bring your own core
 
@@ -280,6 +299,13 @@ Mailpit by seeding `$wp_filter` before `plugin.php` loads. `config` runs
 defines the same constant unconditionally logs a PHP warning. Prefer a swapped
 env file for anything the checkout's own config also sets.
 
+A checkout whose `.htaccess` sets `php_value auto_prepend_file`, as Wordfence's
+firewall does, replaces this prepend for web requests. That path is usually a
+production one, so every request fails with a PHP error naming it. If the path
+does exist in the container, the prepend silently doesn't run, and mail is not
+caught. Either way, mount a local `.htaccess` without that line over the
+checkout's.
+
 `WP_HOME` and `WP_SITEURL` are not defined for these sites. The checkout's
 config and database own its URLs, so point them at `host` and any `aliases` —
 for a multisite that's `wp_site`, `wp_blogs`, and `wp_sitemeta`.
@@ -288,12 +314,8 @@ A first `start` still runs `wp core install` if the database is empty. A repo
 like this usually comes with a database rather than a fresh install — and for a
 multisite config `core install` can't succeed anyway — so import the dump into
 the site's database (`127.0.0.1:3307`, `root` / `password`, named after the
-slug) before the first `start`.
-
-A pin is applied when the plugin is first installed. Changing `@10.7.0` to
-`@10.8.0` won't move a site that already has it — the plugin is present, so
-there's nothing to install. `happy-env cli <site> plugin update` moves it, and
-`reset` (or `destroy`) starts over.
+slug) before the first `start`. For the same reason `reset` refuses a `core`
+site, since it would drop that import. `--force` resets it anyway.
 
 ### Media from production
 
@@ -347,7 +369,7 @@ rather than any project. It's optional, and most people never write one.
 | ------------------------ | ----------------------------------------------------- |
 | `happy-env start [site…]`| Start the shared services and this repo's sites        |
 | `happy-env stop [site…]` | Stop containers, keeping them (restart is seconds)     |
-| `happy-env reset [site…]`| Drop the database and reinstall WordPress fresh (asks first; `--yes` skips) |
+| `happy-env reset [site…]`| Drop the database and reinstall WordPress fresh (asks first; `--yes` skips; a `core` site needs `--force`) |
 | `happy-env destroy [site…]` | Remove containers, volumes, and the database        |
 | `happy-env status`       | What's running                                         |
 | `happy-env cli <site> …` | Run wp-cli, e.g. `happy-env cli blog plugin list`      |
