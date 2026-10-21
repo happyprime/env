@@ -186,10 +186,13 @@ wildcard.
 This is for one network across several domains. Separate sites that happen to
 share a repo want `sites` instead, so each gets its own database.
 
-Note that `WP_HOME` and `WP_SITEURL` are set from `host`, and core removes their
-filters under multisite — "WP_HOME and WP_SITEURL should not have any effect in
-MS", in `ms-default-filters.php` — so a network reads its URLs from the database
-and the constants sit there harmlessly.
+Note that `WP_HOME` and `WP_SITEURL` are set from `host` (unless the site sets
+`core`), and core removes their filters under multisite — "WP_HOME and
+WP_SITEURL should not have any effect in MS", in `ms-default-filters.php` — so a
+network reads its URLs from the database and the constants sit there harmlessly.
+
+For a network that sets `core`, the multisite constants above usually belong to
+the checkout's own `wp-config.php`, not to `config`; see below.
 
 ### Every key
 
@@ -207,6 +210,7 @@ and the constants sit there harmlessly.
 | `config`    | `{}`                | Extra `wp-config.php` constants.                              |
 | `uploads`   | `{}`                | `{ "fallback": "https://prod" }` serves missing media from production. |
 | `root`      | repo root           | Per-site only.                                                |
+| `core`      | —                   | A full WordPress checkout to run instead of the image's core. See below. |
 
 **Declared vs. discovered plugins.** Listing `plugins` explicitly is an intent to
 use them, so they're installed and activated. Anything merely *found* on disk is
@@ -230,6 +234,61 @@ rather than from their own directory:
 Sources are relative to the site root, targets to `wp-content`. A source that
 doesn't exist is an error at start rather than a puzzle later — a missing
 `vendor` says to run `composer install`.
+
+A target that starts with `/` is a path anywhere in the container. That's the
+way in for an Apache or PHP config file — `"./local/site.conf":
+"/etc/apache2/conf-enabled/site.conf"` — since neither has a home under
+`wp-content`.
+
+### Bring your own core
+
+Some repos track all of WordPress, not just `wp-content`, and the point of
+running one locally is to run *that* core. `core` names the checkout:
+
+```json
+{
+	"host": "mysite.example.dev",
+	"core": "../mysite",
+	"mounts": {
+		"./local/env.php": "../env.php"
+	}
+}
+```
+
+The checkout is bind-mounted whole as the docroot, so it supplies core,
+`wp-content`, and its own `wp-config.php`. Nothing is discovered or installed:
+`themes`, `plugins`, `muPlugins`, and `root` are errors beside `core`, because
+the checkout already answers all of them. The `wordpress` key still picks the
+image tag, and so must be one that exists — but only its PHP and Apache are
+used; the WordPress inside is ignored.
+
+**Nothing is written into the checkout.** Docker creates a missing mountpoint
+as an empty directory on the host, which with a bind-mounted docroot means
+inside the repo. So a `mounts` entry into the checkout may only replace a file
+or directory that is already there, and `start` refuses one that isn't. This is
+what makes the shape above work: the repo's `wp-config.php` includes a
+gitignored `env.php`, the checkout has one (its contents don't matter), and the
+mount swaps in the one that names `hp-mysql`. If the file isn't there yet,
+create it — it's gitignored — so there's something to mount over.
+
+Because the image's `wp-config.php` never runs and no mu-plugin can be added,
+three things arrive through PHP's `auto_prepend_file` instead, from
+`services/php/prepend.php`: `$_SERVER['HTTPS']` is set from
+`X-Forwarded-Proto`, `config` constants are defined, and mail is pointed at
+Mailpit by seeding `$wp_filter` before `plugin.php` loads. `config` runs
+*before* `wp-config.php`, so its constants win; a `wp-config.php` that then
+defines the same constant unconditionally logs a PHP warning. Prefer a swapped
+env file for anything the checkout's own config also sets.
+
+`WP_HOME` and `WP_SITEURL` are not defined for these sites. The checkout's
+config and database own its URLs, so point them at `host` and any `aliases` —
+for a multisite that's `wp_site`, `wp_blogs`, and `wp_sitemeta`.
+
+A first `start` still runs `wp core install` if the database is empty. A repo
+like this usually comes with a database rather than a fresh install — and for a
+multisite config `core install` can't succeed anyway — so import the dump into
+the site's database (`127.0.0.1:3307`, `root` / `password`, named after the
+slug) before the first `start`.
 
 A pin is applied when the plugin is first installed. Changing `@10.7.0` to
 `@10.8.0` won't move a site that already has it — the plugin is present, so
@@ -309,6 +368,10 @@ That's also the whole version story: anything is fair game if the tag exists.
 `"beta-6.8-RC1"` pins one exactly. A PHP version works the day its image is
 published and not before. **WordPress nightly/trunk has no image at all**, so
 testing against trunk still means wp-env, which builds core from git.
+
+A site with `core` set skips all of this: the checkout is the docroot and
+the image's WordPress is never copied anywhere. Everything below about volumes
+is about sites without it.
 
 Core lives in a volume named for the WordPress version, so switching versions
 picks up the right core. The image's entrypoint copies core in only when the
