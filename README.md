@@ -141,7 +141,7 @@ root:
 ```json
 {
 	"php": "8.3",
-	"wordpress": "6.9.4",
+	"wordpress": "7.1.3",
 	"config": { "WP_MEMORY_LIMIT": "512M" },
 	"sites": {
 		"blog": {
@@ -202,7 +202,7 @@ the checkout's own `wp-config.php`, not to `config`; see below.
 | `sites`     | —                   | Several sites, keyed by slug. The slug names the database.    |
 | `aliases`   | `[]`                | More hostnames routed to the same site. See above.            |
 | `php`       | `8.4`               | `8.5` works. `8.6` isn't released.                            |
-| `wordpress` | `6.9`               | `6.9` resolves to its latest patch at creation; `6.9.4` pins. |
+| `wordpress` | `7.1`               | `7.1` resolves to its latest patch at creation; `7.1.3` pins. |
 | `themes`    | every dir in `./themes`  | Default themes are skipped — core supplies them.         |
 | `plugins`   | every dir in `./plugins` | See below.                                               |
 | `muPlugins` | `./mu-plugins`      | Mounted entry by entry, not as one directory.                 |
@@ -388,7 +388,7 @@ downloaded or unpacked per project.
 
 That's also the whole version story: anything is fair game if the tag exists.
 `"wordpress": "beta"` follows the next release's latest beta or RC, and
-`"beta-6.8-RC1"` pins one exactly. A PHP version works the day its image is
+`"beta-7.1.1-RC1"` pins one exactly. A PHP version works the day its image is
 published and not before. **WordPress nightly/trunk has no image at all**, so
 testing against trunk still means wp-env, which builds core from git.
 
@@ -405,9 +405,9 @@ a version was to test against it. Databases and uploads live outside that
 volume, so switching back and forth costs nothing.
 
 The volume is keyed on the version *as you wrote it*, which has one consequence
-worth knowing: `"wordpress": "6.9"` is a single volume even though the tag behind
-it moves with every patch. A site created on 6.9.4 stays on 6.9.4 — `destroy` and
-start again is what picks up 6.9.5. Pin fully (`"6.9.4"`) if you want the version
+worth knowing: `"wordpress": "7.1"` is a single volume even though the tag behind
+it moves with every patch. A site created on 7.1.3 stays on 7.1.3 — `destroy` and
+start again is what picks up 7.1.4. Pin fully (`"7.1.3"`) if you want the version
 to be unambiguous on sight.
 
 **Leftovers pile up.** Each version a site has run keeps its core volume and

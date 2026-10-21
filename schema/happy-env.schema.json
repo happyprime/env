@@ -15,9 +15,9 @@
 			"default": "8.4"
 		},
 		"wordpress": {
-			"description": "WordPress version. A minor like '6.9' resolves to its latest patch when a site is first created; a full version like '6.9.4' pins exactly. An existing site keeps the core it was created with until it is destroyed.",
+			"description": "WordPress version. A minor like '7.1' resolves to its latest patch when a site is first created; a full version like '7.1.3' pins exactly. An existing site keeps the core it was created with until it is destroyed.",
 			"type": "string",
-			"default": "6.9"
+			"default": "7.1"
 		},
 		"core": {
 			"description": "A full WordPress checkout to run instead of the image's core, relative to the repo (absolute paths work). It is bind-mounted whole as the docroot and supplies wp-content, so themes, plugins, muPlugins and root cannot be set with it; `mounts` may only replace files that already exist in the checkout. The `wordpress` key then only picks the image's PHP and Apache.",
