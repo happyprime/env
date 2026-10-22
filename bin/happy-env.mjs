@@ -24,7 +24,7 @@ import readline from 'node:readline';
 import { regenerateCert } from '../lib/cert.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { siteDir, writeCompose, MYSQL_PASSWORD, MYSQL_USER } from '../lib/compose.mjs';
-import { capture, dockerAvailable, isRunning, run, waitFor } from '../lib/docker.mjs';
+import { capture, dockerAvailable, isRunning, pullDaily, run, waitFor } from '../lib/docker.mjs';
 import { applyPrune, prunePlan, STALE_DAYS } from '../lib/prune.mjs';
 import {
 	ensureDatabase,
@@ -168,6 +168,17 @@ async function startSite( site ) {
 	}
 
 	writeCompose( site );
+
+	// The cli service sits behind a profile, which `pull` skips unless named.
+	const pulled = await pullDaily( path.join( siteDir( site.slug ), 'pulled' ), [
+		...composeArgs( site ),
+		'--profile',
+		'cli',
+	] );
+
+	if ( pulled === 'failed' ) {
+		log( '  Starting with the images already here.' );
+	}
 
 	const code = await run( 'docker', [ ...composeArgs( site ), 'up', '-d' ] );
 	if ( code !== 0 ) {

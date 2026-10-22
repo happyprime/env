@@ -141,7 +141,7 @@ root:
 ```json
 {
 	"php": "8.3",
-	"wordpress": "6.9.4",
+	"wordpress": "7.1.3",
 	"config": { "WP_MEMORY_LIMIT": "512M" },
 	"sites": {
 		"blog": {
@@ -202,7 +202,7 @@ the checkout's own `wp-config.php`, not to `config`; see below.
 | `sites`     | —                   | Several sites, keyed by slug. The slug names the database.    |
 | `aliases`   | `[]`                | More hostnames routed to the same site. See above.            |
 | `php`       | `8.4`               | `8.5` works. `8.6` isn't released.                            |
-| `wordpress` | `6.9`               | `6.9` resolves to its latest patch at creation; `6.9.4` pins. |
+| `wordpress` | `7.1`               | `7.1` resolves to its latest patch at creation; `7.1.3` pins. |
 | `themes`    | every dir in `./themes`  | Default themes are skipped — core supplies them.         |
 | `plugins`   | every dir in `./plugins` | See below.                                               |
 | `muPlugins` | `./mu-plugins`      | Mounted entry by entry, not as one directory.                 |
@@ -388,13 +388,49 @@ downloaded or unpacked per project.
 
 That's also the whole version story: anything is fair game if the tag exists.
 `"wordpress": "beta"` follows the next release's latest beta or RC, and
-`"beta-6.8-RC1"` pins one exactly. A PHP version works the day its image is
-published and not before. **WordPress nightly/trunk has no image at all**, so
-testing against trunk still means wp-env, which builds core from git.
+`"beta-7.1.1-RC1"` pins one exactly. A PHP version works the day its image is
+published and not before.
 
-A site with `core` set skips all of this: the checkout is the docroot and
-the image's WordPress is never copied anywhere. Everything below about volumes
-is about sites without it.
+**WordPress nightly/trunk has no image at all.** To run trunk, use `core` with
+a clone of `github.com/WordPress/WordPress`, which mirrors the code nightly
+builds are made from:
+
+```sh
+mkdir trunk && cd trunk
+git clone --depth 1 https://github.com/WordPress/WordPress.git
+cp WordPress/wp-config-sample.php WordPress/wp-config.php
+```
+
+```json
+{
+	"host": "trunk.example.dev",
+	"core": "./WordPress"
+}
+```
+
+In `wp-config.php`, set `DB_NAME` to `trunk` (the slug), `DB_USER` to `root`,
+`DB_PASSWORD` to `password`, and `DB_HOST` to `hp-mysql`. The first `start`
+installs WordPress, and `git pull` in the clone moves it forward. Its
+`wp-content` is the clone's: put a plugin under test in
+`WordPress/wp-content/plugins`, or create an empty folder there and mount the
+plugin over it.
+
+**Security updates arrive by re-pull.** Images are rebuilt under the same tag
+for each security release, but Docker never re-pulls a tag it already has. So
+`start` pulls a site's images, and the shared services', when the last
+successful pull is a day old, and recreates whatever changed. Offline, it says
+so and starts with what's there. MariaDB follows `lts`, and upgrades its data
+in place when that moves to a new release, after backing up its system tables
+into the data volume.
+
+Only tags for current WordPress releases are rebuilt: once 7.2
+ships, `7.1` stops getting PHP fixes, and so does a pinned `7.1.3` once 7.1.4
+does. Pinning WordPress pins PHP too. Check a running site with
+`docker exec hp-site-<slug> php -v`.
+
+A site with `core` set still takes PHP and Apache from the image, and the daily
+pull, but not its WordPress: the checkout is the docroot and the image's core is
+never copied anywhere. Everything below about volumes is about sites without it.
 
 Core lives in a volume named for the WordPress version, so switching versions
 picks up the right core. The image's entrypoint copies core in only when the
@@ -405,9 +441,9 @@ a version was to test against it. Databases and uploads live outside that
 volume, so switching back and forth costs nothing.
 
 The volume is keyed on the version *as you wrote it*, which has one consequence
-worth knowing: `"wordpress": "6.9"` is a single volume even though the tag behind
-it moves with every patch. A site created on 6.9.4 stays on 6.9.4 — `destroy` and
-start again is what picks up 6.9.5. Pin fully (`"6.9.4"`) if you want the version
+worth knowing: `"wordpress": "7.1"` is a single volume even though the tag behind
+it moves with every patch. A site created on 7.1.3 stays on 7.1.3 — `destroy` and
+start again is what picks up 7.1.4. Pin fully (`"7.1.3"`) if you want the version
 to be unambiguous on sight.
 
 **Leftovers pile up.** Each version a site has run keeps its core volume and
