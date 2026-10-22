@@ -150,6 +150,45 @@ function announce( sites ) {
 	log( '' );
 }
 
+// The official images are rebuilt under the same tag for each PHP security
+// release, and Docker never re-pulls a tag it already has.
+const PULL_EVERY = 24 * 60 * 60 * 1000;
+
+/**
+ * Pulls a site's images if the last successful pull was over a day ago.
+ *
+ * Compose's `pull_policy: daily` can't do this. It times itself from the
+ * image's LastTagTime, which a pull leaves unset on OrbStack, so it checks the
+ * registry on every `up` and every wp-cli call, and both fail offline.
+ *
+ * @param {Object} site Resolved site.
+ */
+function pullImages( site ) {
+	const stamp = path.join( siteDir( site.slug ), 'pulled' );
+
+	if ( fs.existsSync( stamp ) && Date.now() - fs.statSync( stamp ).mtimeMs < PULL_EVERY ) {
+		return;
+	}
+
+	log( '  checking for newer images…' );
+
+	// The cli service sits behind a profile, which `pull` skips unless named.
+	const result = capture( 'docker', [
+		...composeArgs( site ),
+		'--profile',
+		'cli',
+		'pull',
+		'--quiet',
+	] );
+
+	if ( result.code !== 0 ) {
+		log( '  could not reach the registry; starting with the images already here.' );
+		return;
+	}
+
+	fs.writeFileSync( stamp, '' );
+}
+
 /**
  * Bring up one site.
  *
@@ -168,6 +207,7 @@ async function startSite( site ) {
 	}
 
 	writeCompose( site );
+	pullImages( site );
 
 	const code = await run( 'docker', [ ...composeArgs( site ), 'up', '-d' ] );
 	if ( code !== 0 ) {

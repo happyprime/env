@@ -392,6 +392,15 @@ That's also the whole version story: anything is fair game if the tag exists.
 published and not before. **WordPress nightly/trunk has no image at all**, so
 testing against trunk still means wp-env, which builds core from git.
 
+**PHP updates arrive by re-pull.** The images are rebuilt under the same tag
+for each PHP release, but Docker never re-pulls a tag it already has. So
+`start` pulls a site's images when its last successful pull is a day old, and
+recreates the container if one changed. Offline, it says so and starts with
+what's there. Only tags for current WordPress releases are rebuilt: once 7.2
+ships, `7.1` stops getting PHP fixes, and so does a pinned `7.1.3` once 7.1.4
+does. Pinning WordPress pins PHP too. Check a running site with
+`docker exec hp-site-<slug> php -v`.
+
 A site with `core` set skips all of this: the checkout is the docroot and
 the image's WordPress is never copied anywhere. Everything below about volumes
 is about sites without it.
