@@ -8,6 +8,8 @@
  *                              ( asks first; --yes / -y skips the prompt;
  *                              --force includes sites that set `core` )
  *   happy-env destroy [site…]  Stop and delete containers, volumes, database
+ *   happy-env prune [--yes]    Remove site containers stopped 30+ days, and core
+ *                              volumes and images nothing uses ( asks first )
  *   happy-env status           What's running
  *   happy-env cli <site> …     Run wp-cli against a site
  *   happy-env cert [--only]    Reissue the certificate ( `start` does this for
@@ -23,6 +25,7 @@ import { regenerateCert } from '../lib/cert.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { siteDir, writeCompose, MYSQL_PASSWORD, MYSQL_USER } from '../lib/compose.mjs';
 import { capture, dockerAvailable, isRunning, run, waitFor } from '../lib/docker.mjs';
+import { applyPrune, prunePlan, STALE_DAYS } from '../lib/prune.mjs';
 import {
 	ensureDatabase,
 	ensureServices,
@@ -451,6 +454,52 @@ async function reset( args ) {
 }
 
 /**
+ * happy-env prune
+ *
+ * Works on the whole machine, not one repo, so it can clear sites whose repo
+ * is gone.
+ *
+ * @param {string[]} args Optionally `--yes`/`-y`.
+ */
+async function prune( args ) {
+	const assumeYes = args.some( ( arg ) => arg === '--yes' || arg === '-y' );
+	const plan = prunePlan();
+
+	const sections = [
+		[ `Site containers stopped over ${ STALE_DAYS } days:`, plan.containers ],
+		[ 'Core volumes no container uses:', plan.volumes ],
+		[ 'Images no site uses:', plan.images ],
+	].filter( ( [ , items ] ) => items.length );
+
+	if ( ! sections.length ) {
+		log( 'Nothing to prune.' );
+		return;
+	}
+
+	for ( const [ heading, items ] of sections ) {
+		log( `\n${ heading }` );
+		for ( const item of items ) {
+			log( `  ${ item.label }` );
+		}
+	}
+
+	log( '\nDatabases and uploads are not touched. A site\'s next `start` recreates what it needs.\n' );
+
+	if ( ! assumeYes && ! ( await confirm( 'Remove all of these?' ) ) ) {
+		log( 'Nothing changed.' );
+		return;
+	}
+
+	const failures = applyPrune( plan );
+
+	for ( const failure of failures ) {
+		log( `  could not remove ${ failure }` );
+	}
+
+	log( failures.length ? `\nDone, except ${ failures.length } above.` : 'Done.' );
+}
+
+/**
  * happy-env status
  */
 function status() {
@@ -523,6 +572,9 @@ try {
 			break;
 		case 'destroy':
 			await destroy( args );
+			break;
+		case 'prune':
+			await prune( args );
 			break;
 		case 'status':
 			status();
