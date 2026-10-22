@@ -24,7 +24,7 @@ import readline from 'node:readline';
 import { regenerateCert } from '../lib/cert.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { siteDir, writeCompose, MYSQL_PASSWORD, MYSQL_USER } from '../lib/compose.mjs';
-import { capture, dockerAvailable, isRunning, run, waitFor } from '../lib/docker.mjs';
+import { capture, dockerAvailable, isRunning, pullDaily, run, waitFor } from '../lib/docker.mjs';
 import { applyPrune, prunePlan, STALE_DAYS } from '../lib/prune.mjs';
 import {
 	ensureDatabase,
@@ -150,45 +150,6 @@ function announce( sites ) {
 	log( '' );
 }
 
-// The official images are rebuilt under the same tag for each PHP security
-// release, and Docker never re-pulls a tag it already has.
-const PULL_EVERY = 24 * 60 * 60 * 1000;
-
-/**
- * Pulls a site's images if the last successful pull was over a day ago.
- *
- * Compose's `pull_policy: daily` can't do this. It times itself from the
- * image's LastTagTime, which a pull leaves unset on OrbStack, so it checks the
- * registry on every `up` and every wp-cli call, and both fail offline.
- *
- * @param {Object} site Resolved site.
- */
-function pullImages( site ) {
-	const stamp = path.join( siteDir( site.slug ), 'pulled' );
-
-	if ( fs.existsSync( stamp ) && Date.now() - fs.statSync( stamp ).mtimeMs < PULL_EVERY ) {
-		return;
-	}
-
-	log( '  checking for newer images…' );
-
-	// The cli service sits behind a profile, which `pull` skips unless named.
-	const result = capture( 'docker', [
-		...composeArgs( site ),
-		'--profile',
-		'cli',
-		'pull',
-		'--quiet',
-	] );
-
-	if ( result.code !== 0 ) {
-		log( '  could not reach the registry; starting with the images already here.' );
-		return;
-	}
-
-	fs.writeFileSync( stamp, '' );
-}
-
 /**
  * Bring up one site.
  *
@@ -207,7 +168,17 @@ async function startSite( site ) {
 	}
 
 	writeCompose( site );
-	pullImages( site );
+
+	// The cli service sits behind a profile, which `pull` skips unless named.
+	const pulled = await pullDaily( path.join( siteDir( site.slug ), 'pulled' ), [
+		...composeArgs( site ),
+		'--profile',
+		'cli',
+	] );
+
+	if ( pulled === 'failed' ) {
+		log( '  Starting with the images already here.' );
+	}
 
 	const code = await run( 'docker', [ ...composeArgs( site ), 'up', '-d' ] );
 	if ( code !== 0 ) {

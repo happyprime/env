@@ -55,6 +55,10 @@ services:
       - "127.0.0.1:3307:3306"
     environment:
       MARIADB_ROOT_PASSWORD: password
+      # `lts` moves to each new LTS release, and `start` pulls it daily. This
+      # runs mariadb-upgrade on the existing data when the version changes,
+      # after backing up the system tables into the data volume.
+      MARIADB_AUTO_UPGRADE: 1
     volumes:
       - hp-mysql-data:/var/lib/mysql
     healthcheck:

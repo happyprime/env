@@ -389,21 +389,48 @@ downloaded or unpacked per project.
 That's also the whole version story: anything is fair game if the tag exists.
 `"wordpress": "beta"` follows the next release's latest beta or RC, and
 `"beta-7.1.1-RC1"` pins one exactly. A PHP version works the day its image is
-published and not before. **WordPress nightly/trunk has no image at all**, so
-testing against trunk still means wp-env, which builds core from git.
+published and not before.
 
-**PHP updates arrive by re-pull.** The images are rebuilt under the same tag
-for each PHP release, but Docker never re-pulls a tag it already has. So
-`start` pulls a site's images when its last successful pull is a day old, and
-recreates the container if one changed. Offline, it says so and starts with
-what's there. Only tags for current WordPress releases are rebuilt: once 7.2
+**WordPress nightly/trunk has no image at all.** To run trunk, use `core` with
+a clone of `github.com/WordPress/WordPress`, which mirrors the code nightly
+builds are made from:
+
+```sh
+mkdir trunk && cd trunk
+git clone --depth 1 https://github.com/WordPress/WordPress.git
+cp WordPress/wp-config-sample.php WordPress/wp-config.php
+```
+
+```json
+{
+	"host": "trunk.example.dev",
+	"core": "./WordPress"
+}
+```
+
+In `wp-config.php`, set `DB_NAME` to `trunk` (the slug), `DB_USER` to `root`,
+`DB_PASSWORD` to `password`, and `DB_HOST` to `hp-mysql`. The first `start`
+installs WordPress, and `git pull` in the clone moves it forward. Its
+`wp-content` is the clone's: put a plugin under test in
+`WordPress/wp-content/plugins`, or create an empty folder there and mount the
+plugin over it.
+
+**Security updates arrive by re-pull.** Images are rebuilt under the same tag
+for each security release, but Docker never re-pulls a tag it already has. So
+`start` pulls a site's images, and the shared services', when the last
+successful pull is a day old, and recreates whatever changed. Offline, it says
+so and starts with what's there. MariaDB follows `lts`, and upgrades its data
+in place when that moves to a new release, after backing up its system tables
+into the data volume.
+
+Only tags for current WordPress releases are rebuilt: once 7.2
 ships, `7.1` stops getting PHP fixes, and so does a pinned `7.1.3` once 7.1.4
 does. Pinning WordPress pins PHP too. Check a running site with
 `docker exec hp-site-<slug> php -v`.
 
-A site with `core` set skips all of this: the checkout is the docroot and
-the image's WordPress is never copied anywhere. Everything below about volumes
-is about sites without it.
+A site with `core` set still takes PHP and Apache from the image, and the daily
+pull, but not its WordPress: the checkout is the docroot and the image's core is
+never copied anywhere. Everything below about volumes is about sites without it.
 
 Core lives in a volume named for the WordPress version, so switching versions
 picks up the right core. The image's entrypoint copies core in only when the
