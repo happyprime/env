@@ -371,6 +371,7 @@ rather than any project. It's optional, and most people never write one.
 | `happy-env stop [site…]` | Stop containers, keeping them (restart is seconds)     |
 | `happy-env reset [site…]`| Drop the database and reinstall WordPress fresh (asks first; `--yes` skips; a `core` site needs `--force`) |
 | `happy-env destroy [site…]` | Remove containers, volumes, and the database        |
+| `happy-env prune [--yes]`| Remove what old sites and versions left behind (asks first; see below) |
 | `happy-env status`       | What's running                                         |
 | `happy-env cli <site> …` | Run wp-cli, e.g. `happy-env cli blog plugin list`      |
 | `happy-env cert [--only]`| Reissue the certificate (`start` does this for you)    |
@@ -408,6 +409,23 @@ worth knowing: `"wordpress": "6.9"` is a single volume even though the tag behin
 it moves with every patch. A site created on 6.9.4 stays on 6.9.4 — `destroy` and
 start again is what picks up 6.9.5. Pin fully (`"6.9.4"`) if you want the version
 to be unambiguous on sight.
+
+**Leftovers pile up.** Each version a site has run keeps its core volume and
+image, and a stopped site keeps its container. `destroy` clears one site, but
+only from inside its repo. `happy-env prune` works from anywhere, across the
+whole machine. It lists, then asks before removing:
+
+- site containers stopped more than 30 days;
+- core volumes no remaining container uses;
+- `wordpress` site and wp-cli images no remaining container needs, including
+  untagged ones a re-pull left behind.
+
+Databases, uploads, and the shared services are never touched. Nothing is
+forced: if Docker refuses to remove something, `prune` reports it and moves on.
+A pruned site's next `start` recreates its container and core volume, and
+installs its declared plugins again. Anything installed by hand with `cli`,
+such as an undeclared plugin or a language pack, lived in the core volume and
+is gone.
 
 **One MariaDB.** Every site is a schema on the shared server, not a container of
 its own. Adding a site costs a database, and a test database costs the same.
