@@ -21,10 +21,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 
+import { altisRunning, startAltis, stopAltis } from '../lib/altis.mjs';
 import { regenerateCert } from '../lib/cert.mjs';
 import { loadConfig } from '../lib/config.mjs';
 import { siteDir, writeCompose, MYSQL_PASSWORD, MYSQL_USER } from '../lib/compose.mjs';
 import { capture, dockerAvailable, isRunning, pullDaily, run, waitFor } from '../lib/docker.mjs';
+import { machineConfig } from '../lib/machine.mjs';
 import { applyPrune, prunePlan, STALE_DAYS } from '../lib/prune.mjs';
 import {
 	ensureDatabase,
@@ -79,9 +81,25 @@ function confirm( question ) {
  */
 function projectHosts() {
 	try {
-		return loadConfig().sites.flatMap( ( site ) => site.hosts );
+		const config = loadConfig();
+		return config.altis?.hosts ?? config.sites.flatMap( ( site ) => site.hosts );
 	} catch {
 		return [];
+	}
+}
+
+/**
+ * Refuses a command that Local Server owns in an Altis project.
+ *
+ * @param {Object} config  Loaded config.
+ * @param {string} command Command name.
+ */
+function refuseAltis( config, command ) {
+	if ( config.altis ) {
+		throw new Error(
+			`\`happy-env ${ command }\` doesn't apply to an Altis project. Local Server owns its\n` +
+				'containers and database: see `composer server --help`.'
+		);
 	}
 }
 
@@ -148,6 +166,26 @@ function announce( sites ) {
 
 	log( `  https://${ mailHostFor( sites.map( ( site ) => site.host ) ) }  (mail catcher)` );
 	log( '' );
+}
+
+/**
+ * Print where an Altis project can be reached, and what a browser can't resolve yet.
+ *
+ * @param {Object}   altis   Resolved Altis project.
+ * @param {string[]} missing Hosts that don't resolve to the proxy.
+ */
+function announceAltis( altis, missing ) {
+	log( `\nReady:\n  https://${ altis.host }\n` );
+
+	if ( missing.length ) {
+		const { bindAddress } = machineConfig();
+
+		log(
+			`${ missing.join( ', ' ) } must resolve to the proxy at ${ bindAddress } for a browser\n` +
+				'to reach it. Add this line to /etc/hosts:\n' +
+				`  ${ bindAddress } ${ missing.join( ' ' ) }\n`
+		);
+	}
 }
 
 /**
@@ -312,8 +350,14 @@ async function startSite( site ) {
  * @param {string[]} names Site slugs.
  */
 async function start( names ) {
-	const { sites } = loadConfig();
-	const selected = select( sites, names );
+	const config = loadConfig();
+
+	if ( config.altis ) {
+		announceAltis( config.altis, await startAltis( config.altis, log ) );
+		return;
+	}
+
+	const selected = select( config.sites, names );
 
 	await ensureServices( { hosts: selected.flatMap( ( site ) => site.hosts ), log } );
 
@@ -330,9 +374,15 @@ async function start( names ) {
  * @param {string[]} names Site slugs.
  */
 async function stop( names ) {
-	const { sites } = loadConfig();
+	const config = loadConfig();
 
-	for ( const site of select( sites, names ) ) {
+	if ( config.altis ) {
+		log( `Stopping ${ config.altis.name }…` );
+		await stopAltis( config.altis );
+		return;
+	}
+
+	for ( const site of select( config.sites, names ) ) {
 		const file = path.join( siteDir( site.slug ), 'docker-compose.yml' );
 		if ( ! fs.existsSync( file ) ) {
 			continue;
@@ -351,9 +401,10 @@ async function stop( names ) {
  * @param {string[]} names Site slugs.
  */
 async function destroy( names ) {
-	const { sites } = loadConfig();
+	const config = loadConfig();
+	refuseAltis( config, 'destroy' );
 
-	for ( const site of select( sites, names ) ) {
+	for ( const site of select( config.sites, names ) ) {
 		const file = path.join( siteDir( site.slug ), 'docker-compose.yml' );
 
 		if ( fs.existsSync( file ) ) {
@@ -408,8 +459,10 @@ async function reset( args ) {
 	const force = args.includes( '--force' );
 	const names = args.filter( ( arg ) => ! [ '--yes', '-y', '--force' ].includes( arg ) );
 
-	const { sites } = loadConfig();
-	const selected = select( sites, names );
+	const config = loadConfig();
+	refuseAltis( config, 'reset' );
+
+	const selected = select( config.sites, names );
 
 	// A checked-in core's database is usually an import that took real effort
 	// to get, and a multisite one can't be reinstalled at all.
@@ -526,6 +579,12 @@ function status() {
 	}
 
 	log( '' );
+
+	if ( config.altis ) {
+		const up = altisRunning( config.altis );
+		log( `${ up ? 'running' : 'stopped' }  ${ config.altis.name.padEnd( 32 ) } https://${ config.altis.host }` );
+	}
+
 	for ( const site of config.sites ) {
 		const up = isRunning( `hp-site-${ site.slug }` );
 		log( `${ up ? 'running' : 'stopped' }  ${ site.slug.padEnd( 32 ) } https://${ site.host }` );
@@ -538,7 +597,10 @@ function status() {
  * @param {string[]} args Site slug followed by wp-cli arguments.
  */
 async function cli( args ) {
-	const { sites } = loadConfig();
+	const config = loadConfig();
+	refuseAltis( config, 'cli' );
+
+	const { sites } = config;
 
 	// With one site the slug is optional.
 	let slug = args[ 0 ];

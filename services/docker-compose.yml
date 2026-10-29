@@ -42,6 +42,9 @@ services:
       - traefik.http.routers.dashboard.entrypoints=websecure
       - traefik.http.routers.dashboard.service=api@internal
       - traefik.http.routers.dashboard.tls=true
+      # Set by the CLI to a hash of traefik.yml, so that changing the static
+      # config recreates the proxy.
+      - com.happyprime.env.traefik-config=${HAPPY_ENV_TRAEFIK_CONFIG:-}
 
   mysql:
     image: mariadb:lts

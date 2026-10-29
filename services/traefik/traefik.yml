@@ -17,6 +17,16 @@ entryPoints:
           permanent: true
   websecure:
     address: ":443"
+    # TLS for every router on this entrypoint, not only those that ask. Sites
+    # ask anyway. Altis Local Server's S3, uploads, and Tachyon routers don't,
+    # because its own proxy sets this same default.
+    http:
+      tls: {}
+
+# Altis Local Server's nginx speaks HTTPS with a self-signed certificate. Sites
+# are plain HTTP, so they never reach this.
+serversTransport:
+  insecureSkipVerify: true
 
 api:
   dashboard: true

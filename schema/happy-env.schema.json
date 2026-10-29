@@ -67,6 +67,10 @@
 				}
 			}
 		},
+		"altis": {
+			"description": "The repo is an Altis project run by Local Server. `start` and `stop` run the containers Local Server generated, routed by the shared proxy; hosts come from `extra.altis.modules.local-server` in composer.json. Mutually exclusive with `host` and `sites`.",
+			"const": true
+		},
 		"sites": {
 			"description": "Sites in this repo, keyed by slug. The slug names the database and container. Use this instead of `host` when one repo serves several sites.",
 			"type": "object",
@@ -110,6 +114,7 @@
 	},
 	"oneOf": [
 		{ "required": ["host"] },
-		{ "required": ["sites"] }
+		{ "required": ["sites"] },
+		{ "required": ["altis"] }
 	]
 }

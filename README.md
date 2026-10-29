@@ -211,6 +211,7 @@ the checkout's own `wp-config.php`, not to `config`; see below.
 | `uploads`   | `{}`                | `{ "fallback": "https://prod" }` serves missing media from production. |
 | `root`      | repo root           | Per-site only.                                                |
 | `core`      | —                   | A full WordPress checkout to run instead of the image's core. See below. |
+| `altis`     | —                   | `true` for an Altis Local Server repo. Mutually exclusive with `host` and `sites`. See below. |
 
 **Declared vs. discovered plugins.** Listing `plugins` explicitly is an intent to
 use them, so they're installed and activated. Anything merely *found* on disk is
@@ -351,6 +352,60 @@ validated against the image's CA bundle, both of which a real host satisfies.
 Pointing it at another local `*.dev` site won't work: that name resolves to the
 host loopback the container can't reach, and its certificate is the local CA the
 container doesn't trust.
+
+### An Altis project
+
+Altis Local Server runs its own Traefik on `:80`/`:443` of every interface, so
+under OrbStack it can't run beside the shared proxy (see
+[Sharing ports](#sharing-ports)). Its containers already carry Traefik labels,
+so the shared proxy routes them instead:
+
+```json
+{
+	"altis": true
+}
+```
+
+`start` runs the containers Local Server generated in `vendor/docker-compose.yml`,
+connects the shared proxy to Local Server's `proxy` network, and adds the
+project's hosts to the certificate. `stop` and `status` work as usual. The hosts
+come from `name`, `tld`, and `domains` under `extra.altis.modules.local-server`
+in `composer.json`, with Local Server's defaults: the repo directory's name on
+`altis.dev`. Nothing about the project goes in `.happy-env.json`.
+
+Local Server keeps everything else. Use `composer server cli`, `composer server
+db`, and the rest; `happy-env cli`, `reset`, and `destroy` refuse. Plain
+`composer server start` still works once the shared proxy is stopped, so
+teammates who don't run happy-env are unaffected.
+
+**First run.** Local Server writes its compose file and creates its network in
+`composer server start`, so run that once. With the shared proxy up, it then
+stops at "Could not start traefik proxy". That's expected. On a fresh install,
+run `happy-env services stop` first so Local Server can finish installing, then
+`composer server stop --clean` to give back the ports.
+
+**DNS.** `*.altis.dev` is public DNS pointing at `127.0.0.1`, not the loopback
+alias. `start` checks each host and prints the `/etc/hosts` line a browser
+needs:
+
+```
+127.0.0.2 example.altis.dev s3-example.altis.dev
+```
+
+With `bindAddress` set to `127.0.0.1`, no line is needed.
+
+**How it routes.** Two settings in `traefik.yml` match Local Server's own proxy:
+TLS on every `websecure` router, because its S3, uploads, and Tachyon routers
+don't ask for it; and `insecureSkipVerify`, because its nginx serves HTTPS with
+a self-signed certificate. The proxy joins the `proxy` network under the alias
+`proxy`, which is the name Local Server's PHP container links the project's
+hosts to. That's how S3 Uploads and Tachyon requests from PHP get routed.
+
+**What bites.** Recreating the shared proxy disconnects it from that network.
+If the site starts returning 404 after `happy-env services stop` or a services
+update, run `start` in the Altis repo again. Subdomain multisite hosts don't
+route: the shared proxy's Traefik rejects Local Server's `*.example.altis.dev`
+rules and serves only the hosts named outright.
 
 ## Machine settings
 
@@ -565,7 +620,8 @@ perfectly healthy. `start` checks for these too and names the process. For Valet
 `valet stop` frees the ports.
 
 So, under OrbStack: mutual exclusion, until either it honours host IPs or one
-proxy fronts both stacks.
+proxy fronts both stacks. For Altis Local Server, the shared proxy does front
+both; see [An Altis project](#an-altis-project).
 
 ## Working offline
 
